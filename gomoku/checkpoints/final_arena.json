@@ -1,0 +1,35 @@
+{
+ "ckpt": "checkpoints/best.pt",
+ "sims": 128,
+ "board": 15,
+ "games_each": 100,
+ "rows": [
+  {
+   "opponent": "random",
+   "w": 100,
+   "l": 0,
+   "d": 0,
+   "score": 1.0,
+   "black_wr": 1.0,
+   "avg_plies": 30.6
+  },
+  {
+   "opponent": "heuristic",
+   "w": 100,
+   "l": 0,
+   "d": 0,
+   "score": 1.0,
+   "black_wr": 1.0,
+   "avg_plies": 45.1
+  },
+  {
+   "opponent": "net:checkpoints/early_iter1.pt:128",
+   "w": 63,
+   "l": 37,
+   "d": 0,
+   "score": 0.63,
+   "black_wr": 1.0,
+   "avg_plies": 63.4
+  }
+ ]
+}

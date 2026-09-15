@@ -1,0 +1,17 @@
+{
+ "ckpt": "checkpoints/best.pt",
+ "sims": 256,
+ "board": 15,
+ "games_each": 100,
+ "rows": [
+  {
+   "opponent": "heuristic",
+   "w": 100,
+   "l": 0,
+   "d": 0,
+   "score": 1.0,
+   "black_wr": 1.0,
+   "avg_plies": 61.2
+  }
+ ]
+}
