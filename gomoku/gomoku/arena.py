@@ -26,8 +26,11 @@ def spec_from_str(s: str, default_sims: int):
         parts = s.split(":")
         path = parts[1]
         sims = int(parts[2]) if len(parts) > 2 else default_sims
+        import torch as _t
+        meta = _t.load(path, map_location="cpu", weights_only=True)
+        arch = meta.get("arch", {}) if isinstance(meta, dict) else {}
         with open(path, "rb") as f:
-            return ("net", f.read(), sims)
+            return ("net", f.read(), sims, arch.get("ch", 48), arch.get("blocks", 4))
     raise ValueError(f"unknown opponent '{s}'")
 
 
@@ -45,8 +48,11 @@ def main():
     ap.add_argument("--out", default="", help="optional json report path")
     args = ap.parse_args()
 
+    import torch as _t
+    meta = _t.load(args.ckpt, map_location="cpu", weights_only=True)
+    arch = meta.get("arch", {}) if isinstance(meta, dict) else {}
     with open(args.ckpt, "rb") as f:
-        ours = ("net", f.read(), args.sims)
+        ours = ("net", f.read(), args.sims, arch.get("ch", 48), arch.get("blocks", 4))
 
     report = {"ckpt": args.ckpt, "sims": args.sims, "board": args.board,
               "games_each": args.games, "rows": []}

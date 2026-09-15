@@ -126,8 +126,9 @@ class NetPlayer:
                   sims: int = 200, vcf_depth: int = 14, vcf_color: int | None = BLACK):
         import torch
         from .model import GomokuNet
-        net = GomokuNet(n=n)
         state = torch.load(ckpt, map_location="cpu", weights_only=True)
+        arch = state.get("arch", {}) if isinstance(state, dict) else {}
+        net = GomokuNet(n=n, ch=arch.get("ch", 48), blocks=arch.get("blocks", 4))
         net.load_state_dict(state["model"] if isinstance(state, dict) and "model" in state else state)
         return cls(net, device=device, sims=sims, vcf_depth=vcf_depth,
                    vcf_color=vcf_color)

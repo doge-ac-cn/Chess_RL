@@ -229,7 +229,11 @@ $("btnResign").addEventListener("click", () => {
 // ---------- worker events ----------
 worker.onmessage = (e) => {
   const msg = e.data;
-  if (msg.type === "ready") { setStatus("模型已加载"); newGame(); }
+  if (msg.type === "ready") {
+    setStatus("模型已加载（" + (msg.provider || "wasm") + "）");
+    if (window.__gomokuTest) window.__gomokuTest.provider = msg.provider;
+    newGame();
+  }
   else if (msg.type === "progress") {
     $("progress").textContent = `搜索 ${msg.sim}/${msg.sims}`;
   } else if (msg.type === "error") {

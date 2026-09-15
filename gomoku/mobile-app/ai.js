@@ -1,35 +1,52 @@
 // Gomoku AI: ONNX policy-value net + PUCT MCTS + forced moves + fork guard + VCF.
 // JS port of gomoku/{mcts,players,vcf}.py. Runs inside a Web Worker.
+// Strength features: cross-move tree reuse, prior pruning, white reply book,
+// WebGPU acceleration with WASM fallback.
 "use strict";
 /* global ort, newBoard, cloneBoard, play, undo, status, candidates, fivePoints,
-   fourCompletions, encode, N, EMPTY */
+   fourCompletions, winnerAfter, encode, N, EMPTY */
 
 const CFG = {
   cPuct: 1.8,
-  vcfDepth: 12,
-  vcfBudgetNodes: 4000,
-  vcfBudgetMs: 1500,
+  priorKeep: 16,        // max children per expansion (top-K by prior)
+  priorMin: 0.01,       // ...plus any child with prior >= this
+  vcfDepth: 14,
+  vcfBudgetNodes: 10000,
+  vcfBudgetMs: 2500,
 };
 
 let _session = null;
+let _provider = "";
 
 async function initSession(modelPath) {
-  ort.env.wasm.numThreads = 1; // no cross-origin isolation on plain static hosting
+  ort.env.wasm.numThreads = 1;   // no cross-origin isolation on static hosting
   ort.env.wasm.wasmPaths = "vendor/";
-  _session = await ort.InferenceSession.create(modelPath, {
-    executionProviders: ["wasm"],
-    graphOptimizationLevel: "all",
-  });
+  const attempts = [["webgpu", "wasm"], ["wasm"]];
+  let lastErr = null;
+  for (const eps of attempts) {
+    try {
+      _session = await ort.InferenceSession.create(modelPath, {
+        executionProviders: eps,
+        graphOptimizationLevel: "all",
+      });
+      _provider = eps[0];
+      return _provider;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
 
-// One net forward: returns {policy: Float32Array(225) softmax over candidates, value}
-async function evaluate(b) {
+// One net forward: {prior: Map(idx -> p) over candidates, value}
+async function evaluate(b, restrict) {
   const x = encode(b);
   const input = new ort.Tensor("float32", x, [1, 4, N, N]);
   const out = await _session.run({ planes: input });
-  const logits = out.policy.data;         // (1,225)
-  const value = out.value.data[0];        // scalar in [-1,1]
-  const cand = candidates(b, 2);
+  const logits = out.policy.data;
+  const value = out.value.data[0];
+  let cand = candidates(b, 2);
+  if (restrict) cand = cand.filter(i => restrict.has(i));
   let maxLogit = -Infinity;
   for (const i of cand) if (logits[i] > maxLogit) maxLogit = logits[i];
   let sum = 0;
@@ -45,21 +62,32 @@ async function evaluate(b) {
 // ---------------- PUCT MCTS (full tree, port of mcts.py) ----------------
 
 function makeNode(prior = 0) {
-  return { prior, N: 0, W: 0, children: null }; // children: Map(move -> node)
+  return { prior, N: 0, W: 0, children: null };
 }
 
-async function mcts(board, sims, onProgress) {
-  const root = makeNode();
-  const evalRoot = await evaluate(board);
-  root.children = new Map();
-  for (const [m, pr] of evalRoot.prior) root.children.set(m, makeNode(pr));
-  let rngState = 12345;
-  const rnd = () => (rngState = (rngState * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+function expandChildren(node, prior) {
+  const items = [...prior.entries()].sort((a, b) => b[1] - a[1]);
+  node.children = new Map();
+  let kept = 0;
+  for (const [m, pr] of items) {
+    if (kept < 8 || pr >= CFG.priorMin || kept < CFG.priorKeep) {
+      node.children.set(m, makeNode(pr));
+      kept++;
+    }
+  }
+}
+
+async function mcts(board, sims, root, onProgress) {
+  const rootNode = root || makeNode();
+  if (!rootNode.children) {
+    const ev = await evaluate(board, null);
+    expandChildren(rootNode, ev.prior);
+  }
 
   for (let sim = 0; sim < sims; sim++) {
     const scratch = cloneBoard(board);
-    const path = [];                 // child nodes along the way
-    let node = root;
+    const path = [];
+    let node = rootNode;
 
     while (node.children) {
       let total = 0;
@@ -79,11 +107,10 @@ async function mcts(board, sims, onProgress) {
     const st = status(scratch);
     let value;
     if (st === -1) value = 0;
-    else if (st) value = -1;                      // side to move just lost
+    else if (st) value = -1;
     else {
-      const ev = await evaluate(scratch);
-      node.children = new Map();
-      for (const [m, pr] of ev.prior) node.children.set(m, makeNode(pr));
+      const ev = await evaluate(scratch, null);
+      expandChildren(node, ev.prior);
       value = ev.value;
     }
 
@@ -97,13 +124,13 @@ async function mcts(board, sims, onProgress) {
 
   let bestM = null, bestN = -1;
   const visits = [];
-  for (const [m, ch] of root.children) {
+  for (const [m, ch] of rootNode.children) {
     visits.push([m, ch.N]);
     if (ch.N > bestN) { bestN = ch.N; bestM = m; }
   }
   visits.sort((a, b) => b[1] - a[1]);
-  const ch = root.children.get(bestM);
-  return { move: bestM, q: ch.N ? ch.W / ch.N : 0, ranked: visits };
+  const ch = rootNode.children.get(bestM);
+  return { move: bestM, q: ch.N ? ch.W / ch.N : 0, ranked: visits, root: rootNode };
 }
 
 // ---------------- VCF prover (port of vcf.py, sound: never false-positives) --
@@ -169,6 +196,27 @@ function vcfSafe(board, attacker, depth) {
 
 // ---------------- full move selection (port of players.NetPlayer) -----------
 
+let cachedRoot = null;      // search tree from the previous move
+let cachedHistory = [];     // game history the tree was grown on
+
+function reusableRoot(history) {
+  // reuse subtree if: cached history is a prefix of current history, and the
+  // tree contains the last two moves (our reply + opponent's answer)
+  if (!cachedRoot || history.length < 2) return null;
+  if (history.length < cachedHistory.length + 2) return null;
+  for (let i = 0; i < cachedHistory.length; i++) {
+    if (cachedHistory[i] !== history[i]) return null;
+  }
+  let node = cachedRoot;
+  for (let i = cachedHistory.length; i < history.length; i++) {
+    if (!node.children) return null;
+    const next = node.children.get(history[i]);
+    if (!next) return null;
+    node = next;
+  }
+  return node;
+}
+
 async function chooseMove(board, sims, onProgress) {
   const p = board.toMove, opp = 3 - p;
   const info = { kind: "mcts" };
@@ -184,17 +232,34 @@ async function chooseMove(board, sims, onProgress) {
     return { move: line[0], info };
   }
 
-  const result = await mcts(board, sims, onProgress);
-  let move = result.move;
-  const q = result.q;
-  const ranked = result.ranked;
+  // white reply book: answer black's first stone with a strong adjacent point
+  let restrict = null;
+  if (board.history.length === 1 && p !== 1) {
+    const s = board.history[0];
+    const sr = (s / N) | 0, sc = s % N;
+    restrict = new Set();
+    for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1],[0,-1],[-1,0],[-1,-1],[-1,1]]) {
+      const rr = sr + dr, cc = sc + dc;
+      if (rr >= 0 && rr < N && cc >= 0 && cc < N) restrict.add(rr * N + cc);
+    }
+  }
+
+  const reuse = reusableRoot(board.history);
+  if (reuse) info.treeReuse = true;
+  const { move, q, ranked, root } =
+    await mcts(board, sims, reuse, onProgress && ((s) => onProgress(s, reuse ? 2 : 1)));
+
+  // grow the cache for the next move
+  cachedRoot = root;
+  cachedHistory = board.history.slice();
+
   info.q = q;
 
   // fork guard: don't allow the opponent an unstoppable four unless our move
   // is itself forcing (creates a four of our own)
   const myComps = fourCompletions(board, (move / N) | 0, move % N, p);
   if (myComps.size === 0) {
-    const rankedMoves = ranked.filter(v => v[1] > 0).slice(0, 6).map(v => v[0]);
+    const rankedMoves = ranked.filter(v => v[1] > 0).slice(0, 8).map(v => v[0]);
     let chosen = null;
     for (const m of rankedMoves) {
       if (!allowsFork(board, m, opp)) { chosen = m; break; }
@@ -214,6 +279,7 @@ async function chooseMove(board, sims, onProgress) {
     if (chosen !== null && chosen !== move) {
       info.forkGuard = `${move}->${chosen}`;
       move = chosen;
+      cachedRoot = null; cachedHistory = [];   // off-policy move: drop tree
     }
   }
   return { move, info };

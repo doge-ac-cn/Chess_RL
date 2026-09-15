@@ -17,8 +17,9 @@ from .model import GomokuNet, count_params
 
 def export(ckpt: str, out_dir: str, n: int = 15):
     os.makedirs(out_dir, exist_ok=True)
-    net = GomokuNet(n=n)
     state = torch.load(ckpt, map_location="cpu", weights_only=True)
+    arch = state.get("arch", {}) if isinstance(state, dict) else {}
+    net = GomokuNet(n=n, ch=arch.get("ch", 48), blocks=arch.get("blocks", 4))
     net.load_state_dict(state["model"] if isinstance(state, dict) and "model" in state else state)
     net.eval()
     print(f"params: {count_params(net)} ({count_params(net) * 4 / 1024:.0f} KB fp32 weights)")

@@ -38,9 +38,10 @@ def weights_bytes(net: torch.nn.Module) -> bytes:
 
 
 def load_net(path: str, n: int, device: str) -> GomokuNet:
-    net = GomokuNet(n=n)
-    state = torch.load(path, map_location="cpu", weights_only=True)
-    net.load_state_dict(state["model"] if "model" in state else state)
+    ck = torch.load(path, map_location="cpu", weights_only=True)
+    arch = ck.get("arch", {}) if isinstance(ck, dict) else {}
+    net = GomokuNet(n=n, ch=arch.get("ch", 48), blocks=arch.get("blocks", 4))
+    net.load_state_dict(ck["model"] if "model" in ck else ck)
     return net.to(device)
 
 
@@ -83,6 +84,11 @@ def bc_dataset(n_games: int, n: int, seed: int):
             label_board.cells = cells
             label_board.to_move = mover
             label_board.last = None
+            # candidates() treats an empty history as an empty board; rebuild
+            # it from the stones so the labeler sees the real position
+            label_board.history = [
+                (int(r), int(c)) for r, c in np.argwhere(cells != 0)
+            ]
             try:
                 mv = labeler.move(label_board)
             except RuntimeError:
@@ -189,6 +195,8 @@ def main():
     ap.add_argument("--teacher-eval-games", type=int, default=30)
     ap.add_argument("--stop-winrate", type=float, default=1.01,
                     help="stop when black-vs-teacher winrate exceeds this")
+    ap.add_argument("--ch", type=int, default=48)
+    ap.add_argument("--blocks", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", default="")
     args = ap.parse_args()
@@ -198,7 +206,7 @@ def main():
     rng = np.random.default_rng(args.seed)
     torch.manual_seed(args.seed)
 
-    net = GomokuNet(n=args.board).to(args.device)
+    net = GomokuNet(n=args.board, ch=args.ch, blocks=args.blocks).to(args.device)
     print(f"[init] params={count_params(net)/1e3:.0f}k device={args.device} "
           f"workers={args.workers}", flush=True)
 
@@ -225,7 +233,7 @@ def main():
         opt = torch.optim.Adam(net.parameters(), lr=2e-3, weight_decay=1e-4)
         idx = np.arange(len(data))
         net.train()
-        for ep in range(8):
+        for ep in range(24):
             rng.shuffle(idx)
             for i in range(0, len(idx) - args.batch + 1, args.batch):
                 bidx = idx[i:i + args.batch]
@@ -245,12 +253,12 @@ def main():
         print(f"[bc] {len(data)} positions in {time.time()-t:.0f}s, "
               f"held-out teacher-move top-1 acc={vacc:.2f}", flush=True)
         buffer.extend(data[: args.buffer_cap])
-        best = GomokuNet(n=args.board).to(args.device)
+        best = GomokuNet(n=args.board, ch=args.ch, blocks=args.blocks).to(args.device)
         best.load_state_dict(net.state_dict())
         best.eval()
-        save_ckpt(best, args.out, "best", 0, {"stage": "bc"})
+        save_ckpt(best, args.out, "best", 0, {"stage": "bc"}, args.ch, args.blocks)
 
-    net_spec = lambda: ("net", weights_bytes(best), args.sims)
+    net_spec = lambda: ("net", weights_bytes(best), args.sims, args.ch, args.blocks)
     heuristic_spec = ("heuristic",)
 
     # ---------- stage 2: AlphaZero self-play ----------
@@ -270,6 +278,7 @@ def main():
         # 1) self-play with the CURRENT net (explore) across workers
         w = weights_bytes(net)
         games = parallel_selfplay(w, {"sims": args.sims, "temp_moves": 8,
+                                    "ch": args.ch, "blocks": args.blocks,
                                       "temperature": 1.0},
                                   args.games_per_iter, args.workers,
                                   args.board, "cpu", args.sims)
@@ -283,7 +292,7 @@ def main():
                                  args.epochs, args.batch, rng)
 
         # 3) gate: candidate vs best (both colors) + black vs teacher
-        cand = ("net", weights_bytes(net), args.sims)
+        cand = ("net", weights_bytes(net), args.sims, args.ch, args.blocks)
         gate = match_parallel(cand, net_spec(), args.gate_games, args.workers,
                               args.board, "cpu", seed0=1000 * it)
         gate_s = score(gate)
@@ -294,7 +303,7 @@ def main():
 
         promoted = gate_s >= 0.55 or it == start_iter
         if promoted:
-            best = GomokuNet(n=args.board).to(args.device)
+            best = GomokuNet(n=args.board, ch=args.ch, blocks=args.blocks).to(args.device)
             best.load_state_dict(net.state_dict())
             best.eval()
         row = {"iter": it, "buffer": len(buffer), "new_pos": new_pos,
@@ -307,8 +316,8 @@ def main():
         print("[rl] " + json.dumps(row), flush=True)
         with open(os.path.join(args.out, "history.json"), "w") as f:
             json.dump(history, f, indent=1)
-        save_ckpt(best, args.out, "best", it, row)
-        save_ckpt(net, args.out, "latest", it, row)
+        save_ckpt(best, args.out, "best", it, row, args.ch, args.blocks)
+        save_ckpt(net, args.out, "latest", it, row, args.ch, args.blocks)
 
         if te_wr >= args.stop_winrate:
             print(f"[rl] reached stop-winrate {args.stop_winrate} — done", flush=True)
@@ -318,9 +327,11 @@ def main():
     print(f"[done] total {(time.time()-t0)/60:.1f} min, iterations {it}", flush=True)
 
 
-def save_ckpt(net, out_dir: str, name: str, it: int, row: dict) -> str:
+def save_ckpt(net, out_dir: str, name: str, it: int, row: dict,
+              ch: int = 48, blocks: int = 4) -> str:
     path = os.path.join(out_dir, f"{name}.pt")
-    torch.save({"model": net.state_dict(), "iter": it, "stats": row}, path)
+    torch.save({"model": net.state_dict(), "iter": it, "stats": row,
+                "arch": {"ch": ch, "blocks": blocks}}, path)
     return path
 
 

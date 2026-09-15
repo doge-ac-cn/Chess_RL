@@ -14,14 +14,14 @@ from .model import GomokuNet
 _WORKER: dict = {}
 
 
-def _init_worker(n: int, device: str, sims: int):
+def _init_worker(n: int, device: str, sims: int, ch: int = 48, blocks: int = 4):
     torch.set_num_threads(1)
     _WORKER["n"] = n
     _WORKER["device"] = device
     _WORKER["sims"] = sims
     seed = (os.getpid() * 1_000_003) % (2**31)
     _WORKER["rng"] = np.random.default_rng(seed)
-    net = GomokuNet(n=n)
+    net = GomokuNet(n=n, ch=ch, blocks=blocks)
     net.to(device).eval()
     _WORKER["net"] = net
     _WORKER["engine"] = MCTSEngine(net, device=device)
@@ -92,12 +92,13 @@ def parallel_selfplay(weights: bytes, cfg: dict, n_games: int,
     import multiprocessing as mp
 
     tasks = [(weights, cfg, i) for i in range(n_games)]
+    ch, blocks = cfg.get("ch", 48), cfg.get("blocks", 4)
     if n_workers <= 1:
-        _init_worker(n, device, sims)
+        _init_worker(n, device, sims, ch, blocks)
         return [selfplay_game(*t) for t in tasks]
     ctx = mp.get_context("fork")
     with ctx.Pool(n_workers, initializer=_init_worker,
-                  initargs=(n, device, sims)) as pool:
+                  initargs=(n, device, sims, ch, blocks)) as pool:
         return pool.map(_game_task, tasks)
 
 

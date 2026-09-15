@@ -6,8 +6,8 @@ self.onmessage = async (e) => {
   const msg = e.data;
   try {
     if (msg.type === "init") {
-      await initSession(msg.modelPath);
-      self.postMessage({ type: "ready" });
+      const provider = await initSession(msg.modelPath);
+      self.postMessage({ type: "ready", provider });
     } else if (msg.type === "move") {
       const b = msg.board; // {cells, toMove, last, history}
       const res = await chooseMove(b, msg.sims, (sim) =>

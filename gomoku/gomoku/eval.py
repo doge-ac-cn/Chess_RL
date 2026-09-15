@@ -34,7 +34,9 @@ def _build(spec):
     if kind == "net":
         from .model import GomokuNet
         from .players import NetPlayer
-        net = GomokuNet(n=_W["n"])
+        ch = spec[3] if len(spec) > 3 else 48
+        blocks = spec[4] if len(spec) > 4 else 4
+        net = GomokuNet(n=_W["n"], ch=ch, blocks=blocks)
         state = torch.load(io.BytesIO(spec[1]), map_location="cpu", weights_only=True)
         net.load_state_dict(state["model"] if isinstance(state, dict) and "model" in state else state)
         player = NetPlayer(net, device=_W["device"], sims=spec[2], seed=0,

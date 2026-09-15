@@ -204,6 +204,19 @@ def test_fork_guard_detection():
     assert player._allows_fork(b, (1, 6), WHITE), "(1,6) allows the (9,10) fork"
 
 
+def test_bc_labels_legal():
+    """Regression: BC relabeled targets must be on EMPTY cells of the position.
+    (A real bug: labeler board had empty history -> candidates() thought the
+    board was empty -> every label was the center point.)"""
+    from gomoku.train import bc_dataset
+    data = bc_dataset(6, 15, 0)
+    assert data, "no BC data generated"
+    for x, pi, z in data:
+        mv = int(pi.argmax())
+        assert x[0].flatten()[mv] == 0 and x[1].flatten()[mv] == 0, \
+            "BC label points at an occupied cell"
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
