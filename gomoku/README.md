@@ -41,6 +41,21 @@ python3 -m gomoku.arena --ckpt checkpoints/best.pt --opponents heuristic random 
 python3 -m gomoku.export_onnx --ckpt checkpoints/best.pt --out mobile/models
 ```
 
+## 手机 App（PWA，浏览器打开即玩）
+
+`mobile-app/` 是一个零依赖的移动端网页应用：ONNX Runtime Web 在手机本地运行
+fp32 模型（1.1MB），完整移植了 MCTS、强制着法、防叉守卫与 VCF 证明器。
+支持执黑/执白、三档思考量、悔棋/提示/认输、连珠高亮，可离线、可"添加到主屏幕"。
+
+```bash
+cd mobile-app
+python3 -m http.server 8775        # 本地试玩: http://127.0.0.1:8775
+```
+
+放到手机上：把 `mobile-app/` 部署到任意静态托管（如 GitHub Pages：仓库设置里开启
+Pages、根目录选 main / 或用 `docs` 目录），手机浏览器访问后选择"添加到主屏幕"。
+原生 App 路线见 `mobile/ANDROID.md`（ONNX Runtime Android + Kotlin）。
+
 ## 训练
 
 ```bash

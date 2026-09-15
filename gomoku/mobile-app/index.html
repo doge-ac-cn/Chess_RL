@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1c1a17">
+<title>五子棋 AI · Chess_RL</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>五子棋 AI <span class="badge">AlphaZero 式 · 302KB 模型</span></h1>
+</header>
+
+<main>
+  <div id="statusRow">
+    <span id="status">正在加载模型…</span>
+    <span id="progress"></span>
+  </div>
+
+  <div id="boardWrap">
+    <canvas id="board"></canvas>
+  </div>
+
+  <div id="controls">
+    <button id="btnNew">新对局</button>
+    <button id="btnUndo">悔棋</button>
+    <button id="btnHint">提示</button>
+    <button id="btnResign">认输</button>
+  </div>
+
+  <div id="settings">
+    <label>执子
+      <select id="selColor">
+        <option value="1">执黑（先手）</option>
+        <option value="2">执白（后手）</option>
+      </select>
+    </label>
+    <label>AI 思考量
+      <select id="selSims">
+        <option value="64">快（64）</option>
+        <option value="128" selected>标准（128）</option>
+        <option value="256">强（256）</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="log"></div>
+
+  <footer>
+    引擎：策略价值 ResNet(284k) + MCTS + 强制着法/防叉守卫/VCF 证明器 ·
+    <a href="https://github.com/doge-ac-cn/Chess_RL" target="_blank" rel="noopener">Chess_RL 项目</a>
+  </footer>
+</main>
+
+<script>
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
