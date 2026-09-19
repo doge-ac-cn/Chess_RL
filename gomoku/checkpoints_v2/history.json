@@ -502,5 +502,41 @@
   "vs_teacher_black": 1.0,
   "promoted": false,
   "t": 243.2
+ },
+ {
+  "iter": 43,
+  "buffer": 5687,
+  "new_pos": 799,
+  "loss": 3.4066,
+  "p": 3.0286,
+  "v": 0.378,
+  "gate": 0.0,
+  "vs_teacher_black": 1.0,
+  "promoted": true,
+  "t": 213.8
+ },
+ {
+  "iter": 44,
+  "buffer": 6799,
+  "new_pos": 1112,
+  "loss": 3.3723,
+  "p": 3.0132,
+  "v": 0.3591,
+  "gate": 0.5,
+  "vs_teacher_black": 0.917,
+  "promoted": false,
+  "t": 297.8
+ },
+ {
+  "iter": 45,
+  "buffer": 7823,
+  "new_pos": 1024,
+  "loss": 3.512,
+  "p": 3.1305,
+  "v": 0.3815,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 295.1
  }
 ]
