@@ -1,5 +1,5 @@
 // Offline cache: app shell + model + runtime. Version bump to refresh.
-const CACHE = "gomoku-ai-v5";
+const CACHE = "gomoku-ai-v6";
 const ASSETS = [
   "./", "./index.html", "./style.css", "./app.js",
   "./engine.js", "./ai.js", "./worker.js",

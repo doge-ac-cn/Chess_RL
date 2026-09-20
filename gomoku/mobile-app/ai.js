@@ -246,8 +246,10 @@ async function chooseMove(board, sims, onProgress) {
 
   const reuse = reusableRoot(board.history);
   if (reuse) info.treeReuse = true;
-  const { move, q, ranked, root } =
-    await mcts(board, sims, reuse, onProgress && ((s) => onProgress(s, reuse ? 2 : 1)));
+  const result = await mcts(board, sims, reuse,
+    onProgress && ((s) => onProgress(s, reuse ? 2 : 1)));
+  let move = result.move;
+  const q = result.q, ranked = result.ranked, root = result.root;
 
   // grow the cache for the next move
   cachedRoot = root;
