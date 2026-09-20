@@ -21,7 +21,8 @@ def selfplay_game(mcts: XiangqiMCTS, sims: int = 32, temp_moves: int = 12,
     board = Board()
     data = []
     plies = 0
-    while not board.status() and plies < max_plies:
+    while (not board.status() and not board.is_repetition_draw(3)
+           and plies < max_plies):
         x = encode(board)
         legal = board.legal_moves()
         ply = len(board.history)

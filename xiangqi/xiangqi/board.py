@@ -46,7 +46,7 @@ CHAR = {"K": K, "A": A, "B": B, "N": N, "R": R, "C": C, "P": P,
 
 
 class Board:
-    __slots__ = ("cells", "to_move", "history")
+    __slots__ = ("cells", "to_move", "history", "pos_keys")
 
     def __init__(self, setup: list[str] | None = None):
         self.cells = [EMPTY] * (ROWS * COLS)
@@ -58,12 +58,17 @@ class Board:
                     self.cells[IDX(r, c)] = CHAR[ch]
         self.to_move = RED
         self.history = []
+        self.pos_keys = [self._pos_key()]
+
+    def _pos_key(self) -> tuple:
+        return (tuple(self.cells), self.to_move)
 
     def clone(self) -> "Board":
         b = Board.__new__(Board)
         b.cells = self.cells[:]
         b.to_move = self.to_move
         b.history = list(self.history)
+        b.pos_keys = list(self.pos_keys)
         return b
 
     def play(self, mv: tuple[int, int]) -> None:
@@ -72,12 +77,18 @@ class Board:
         self.cells[t] = self.cells[f]
         self.cells[f] = EMPTY
         self.to_move = BLACK if self.to_move == RED else RED
+        self.pos_keys.append(self._pos_key())
 
     def undo(self) -> None:
         f, t, captured = self.history.pop()
         self.cells[f] = self.cells[t]
         self.cells[t] = captured
         self.to_move = BLACK if self.to_move == RED else RED
+        self.pos_keys.pop()
+
+    def is_repetition_draw(self, threshold: int = 3) -> bool:
+        """Same position (pieces + side to move) occurred `threshold` times."""
+        return self.pos_keys.count(self._pos_key()) >= threshold
 
     def king(self, side: int) -> int:
         target = K if side == RED else BK

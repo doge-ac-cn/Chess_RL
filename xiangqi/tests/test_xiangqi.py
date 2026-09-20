@@ -177,6 +177,36 @@ def test_undo_restores_position():
     assert b.cells == snapshot and b.to_move == RED and not b.history
 
 
+def test_repetition_draw():
+    # red rook shuttles (8,0)<->(7,0); black king shuttles (0,4)<->(0,5);
+    # after 3 full cycles the starting position repeats 3 times -> draw.
+    # red king at (9,3) so the kings never face on a file.
+    b = Board(setup=[
+        "....k....",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "R........",
+        "...K.....",
+    ])
+    b.to_move = RED
+    for _ in range(3):
+        seq = [(72, 63), (4, 5), (63, 72), (5, 4)]  # R shuttle + K shuttle
+        legal = b.legal_moves()
+        for f, t in seq:
+            assert (f, t) in legal, \
+                f"illegal step {f}->{t} at ply {len(b.history)}: legal={b.legal_moves()}"
+            b.play((f, t))
+            legal = b.legal_moves()
+    assert b.is_repetition_draw(3)
+    assert b.is_repetition_draw(4)
+    assert not b.is_repetition_draw(5)
+
+
 def test_selfplay_smoke():
     """random vs random completes 300 plies without crashing."""
     import random
