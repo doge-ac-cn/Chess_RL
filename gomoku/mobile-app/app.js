@@ -230,7 +230,9 @@ $("btnResign").addEventListener("click", () => {
 worker.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "ready") {
-    setStatus("模型已加载（" + (msg.provider || "wasm") + "）");
+    setStatus("模型已加载（" + (msg.provider || "wasm") +
+      (msg.recSims ? "，本机推荐 " + msg.recSims + " sims ≈ " + msg.msPerEval + "ms/次" : "") + "）");
+    if (msg.recSims) $("selSims").value = String(msg.recSims);
     if (window.__gomokuTest) window.__gomokuTest.provider = msg.provider;
     newGame();
   }

@@ -77,12 +77,18 @@ function expandChildren(node, prior) {
   }
 }
 
-async function mcts(board, sims, root, onProgress) {
+async function mcts(board, sims, root, onProgress, restrict) {
   const rootNode = root || makeNode();
   if (!rootNode.children) {
-    const ev = await evaluate(board, null);
+    const ev = await evaluate(board, restrict);
     expandChildren(rootNode, ev.prior);
   }
+  if (typeof window !== "undefined") window.__dbg = {
+    hasRestrict: !!restrict,
+    restrictSize: restrict ? restrict.size : 0,
+    rootKids: rootNode.children ? [...rootNode.children.keys()].slice(0, 12)
+      .map(m => String.fromCharCode(65 + (m % 15)) + (((m / 15) | 0) + 1)) : [],
+  };
 
   for (let sim = 0; sim < sims; sim++) {
     const scratch = cloneBoard(board);
@@ -247,7 +253,7 @@ async function chooseMove(board, sims, onProgress) {
   const reuse = reusableRoot(board.history);
   if (reuse) info.treeReuse = true;
   const result = await mcts(board, sims, reuse,
-    onProgress && ((s) => onProgress(s, reuse ? 2 : 1)));
+    onProgress && ((s) => onProgress(s, reuse ? 2 : 1)), restrict);
   let move = result.move;
   const q = result.q, ranked = result.ranked, root = result.root;
 

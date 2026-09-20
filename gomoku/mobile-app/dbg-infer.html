@@ -1,0 +1,27 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>running...
+<script src="vendor/ort.min.js"></script>
+<script src="engine.js"></script>
+<script>
+ort.env.wasm.numThreads = 1;
+ort.env.wasm.wasmPaths = "vendor/";
+(async () => {
+  const s = await ort.InferenceSession.create("models/gomoku_policy_value.onnx",
+    { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+  const b = newBoard();
+  [[7,7],[9,9],[6,6],[10,10]].forEach(([r,c]) => play(b, r, c));
+  const x = encode(b);
+  const t = new ort.Tensor("float32", x, [1, 4, 15, 15]);
+  const out = await s.run({ planes: t });
+  const logits = out.policy.data, value = out.value.data[0];
+  const cand = candidates(b, 2);
+  let mx = -Infinity;
+  for (const i of cand) mx = Math.max(mx, logits[i]);
+  const p = [];
+  let sum = 0;
+  for (const i of cand) { const e = Math.exp(logits[i] - mx); p.push([i, e]); sum += e; }
+  const top = p.map(([i, e]) => [i, e / sum]).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([i, pr]) => String.fromCharCode(65 + (i % 15)) + (((i / 15) | 0) + 1) + ":" + pr.toFixed(4));
+  document.body.textContent = "RESULT value=" + value.toFixed(4) +
+    " | top8=" + top.join(" ");
+})();
+</script></body></html>

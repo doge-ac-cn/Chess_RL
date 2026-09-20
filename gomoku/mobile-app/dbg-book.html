@@ -1,0 +1,22 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>running...
+<script src="vendor/ort.min.js?v=1789877639"></script>
+<script src="engine.js?v=1789877639"></script>
+<script src="ai.js?v2=1789877639"></script>
+<script>
+ort.env.wasm.numThreads = 1;
+ort.env.wasm.wasmPaths = "vendor/";
+(async () => {
+  await initSession("models/gomoku_policy_value.onnx?v=1789877639");
+  const b = newBoard();
+  play(b, 7, 7);   // black H8, white to move
+  const res = await chooseMove(b, 64, null);
+  const kids = res.root && res.root.children
+    ? [...res.root.children.keys()].map(m => String.fromCharCode(65 + (m % 15)) + (((m / 15) | 0) + 1))
+    : "no-root";
+  const mv = res.move;
+  const name = String.fromCharCode(65 + (mv % 15)) + (((mv / 15) | 0) + 1);
+  const dist = Math.max(Math.abs(((mv / 15) | 0) - 7), Math.abs((mv % 15) - 7));
+  document.body.textContent = "RESULT via=" + res.info.kind + " move=" + name +
+    " chebyshev-from-H8=" + dist + " q=" + (res.info.q ?? "-") + " rootkids=" + JSON.stringify(kids);
+})();
+</script></body></html>

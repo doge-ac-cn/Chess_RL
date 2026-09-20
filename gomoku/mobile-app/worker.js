@@ -7,7 +7,13 @@ self.onmessage = async (e) => {
   try {
     if (msg.type === "init") {
       const provider = await initSession(msg.modelPath);
-      self.postMessage({ type: "ready", provider });
+      // calibrate device speed -> recommended simulation count
+      const b = newBoard();
+      const t0 = Date.now();
+      for (let k = 0; k < 8; k++) await evaluate(b, null);
+      const per = (Date.now() - t0) / 8;
+      const recSims = Math.max(128, Math.min(1024, Math.round(4000 / Math.max(4, per) / 64) * 64));
+      self.postMessage({ type: "ready", provider, recSims, msPerEval: Math.round(per) });
     } else if (msg.type === "move") {
       const b = msg.board; // {cells, toMove, last, history}
       const res = await chooseMove(b, msg.sims, (sim) =>
