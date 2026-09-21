@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1a17">
-<title>五子棋 AI · Chess_RL</title>
+<title>棋类 AI · Chess_RL</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -12,58 +12,34 @@
 </head>
 <body>
 <header>
-  <h1>五子棋 AI <span class="badge">AlphaZero 式 · 302KB 模型</span></h1>
+  <h1>棋类 AI <span class="badge">AlphaZero 式自我对弈 · Chess_RL</span></h1>
 </header>
-
 <main>
-  <div id="statusRow">
-    <span id="status">正在加载模型…</span>
-    <span id="progress"></span>
+  <p class="hint">选择棋类开始对弈（模型在你的设备上本地推理）</p>
+  <div class="cards">
+    <a class="card" href="gomoku.html">
+      <div class="card-icon gomoku-icon">⚫⚪</div>
+      <h2>五子棋</h2>
+      <p>15×15 · V2 模型 56 万参数<br>黑棋对老师 AI 全胜</p>
+      <span class="playable">可对弈</span>
+    </a>
+    <a class="card" href="xiangqi.html">
+      <div class="card-icon xiangqi-icon">帥</div>
+      <h2>中国象棋</h2>
+      <p>9×10 · BC 策略模型 139 万参数<br>老师 AI 蒸馏第一版</p>
+      <span class="playable">可对弈</span>
+    </a>
+    <a class="card disabled" href="go.html">
+      <div class="card-icon go-icon">⚫</div>
+      <h2>围棋</h2>
+      <p>19 路 · 大模型规划中<br>规则引擎已就绪</p>
+      <span class="soon">训练中</span>
+    </a>
   </div>
-
-  <div id="boardWrap">
-    <canvas id="board"></canvas>
-  </div>
-
-  <div id="controls">
-    <button id="btnNew">新对局</button>
-    <button id="btnUndo">悔棋</button>
-    <button id="btnHint">提示</button>
-    <button id="btnResign">认输</button>
-  </div>
-
-  <div id="settings">
-    <label>执子
-      <select id="selColor">
-        <option value="1">执黑（先手）</option>
-        <option value="2">执白（后手）</option>
-      </select>
-    </label>
-    <label>AI 思考量
-      <select id="selSims">
-        <option value="128">快（128）</option>
-        <option value="256" selected>标准（256）</option>
-        <option value="512">强（512）</option>
-        <option value="1024">极强（1024，慢）</option>
-      </select>
-    </label>
-  </div>
-
-  <div id="log"></div>
-
   <footer>
-    引擎：策略价值 ResNet(284k) + MCTS + 强制着法/防叉守卫/VCF 证明器 ·
+    每晚定时自我对弈训练，模型持续变强 ·
     <a href="https://github.com/doge-ac-cn/Chess_RL" target="_blank" rel="noopener">Chess_RL 项目</a>
   </footer>
 </main>
-
-<script>
-if ("serviceWorker" in navigator &&
-    !["localhost", "127.0.0.1"].includes(location.hostname)) {
-  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
-}
-</script>
-<script src="engine.js"></script>
-<script src="app.js"></script>
 </body>
 </html>
