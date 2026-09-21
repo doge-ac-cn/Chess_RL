@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1c1a17">
+<title>中国象棋 AI · Chess_RL</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">←</a>
+  <h1>中国象棋 AI <span class="badge">BC 策略模型 · 139万参数</span></h1>
+</header>
+<main>
+  <div id="xstatusRow">
+    <span id="xstatus">正在加载模型…</span>
+  </div>
+  <div id="xboardWrap">
+    <canvas id="xboard"></canvas>
+  </div>
+  <div id="controls">
+    <button id="xbtnNew">新对局</button>
+    <button id="xbtnUndo">悔棋</button>
+  </div>
+  <div id="xlog"></div>
+  <footer>
+    AI = 老师 AI 蒸馏的策略网络（每晚训练升级）·
+    <a href="https://github.com/doge-ac-cn/Chess_RL" target="_blank" rel="noopener">Chess_RL 项目</a>
+  </footer>
+</main>
+<script src="xiangqi-engine.js"></script>
+<script src="xiangqi-app.js"></script>
+</body>
+</html>

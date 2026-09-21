@@ -4,13 +4,15 @@ if (["localhost", "127.0.0.1"].includes(self.location.hostname)) {
   self.registration.unregister();
   self.addEventListener("fetch", () => {});
 } else {
-  const CACHE = "gomoku-ai-v7";
+  const CACHE = "chess-rl-v9";
   const ASSETS = [
-    "./", "./index.html", "./style.css", "./app.js",
-    "./engine.js", "./ai.js", "./worker.js",
+    "./", "./index.html",
+    "./gomoku.html", "./xiangqi.html", "./go.html",
+    "./style.css", "./app.js", "./engine.js", "./ai.js", "./worker.js",
+    "./xiangqi-app.js", "./xiangqi-engine.js", "./xiangqi-ai.js", "./xiangqi-worker.js",
     "./vendor/ort.min.js", "./vendor/ort-wasm-simd.wasm",
     "./vendor/ort-wasm-simd-threaded.jsep.wasm",
-    "./models/gomoku_policy_value.onnx",
+    "./models/gomoku_policy_value.onnx", "./models/xiangqi_policy_value.onnx",
     "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png",
   ];
 
