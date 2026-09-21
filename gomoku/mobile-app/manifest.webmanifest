@@ -1,7 +1,7 @@
 {
-  "name": "五子棋 AI · Chess_RL",
-  "short_name": "五子棋AI",
-  "description": "AlphaZero 式自我对弈训练的五子棋 AI，模型在手机本地推理",
+  "name": "棋类 AI · Chess_RL",
+  "short_name": "棋类AI",
+  "description": "自我对弈强化学习训练的棋类 AI（五子棋/象棋/围棋），模型在手机本地推理",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#14120f",
