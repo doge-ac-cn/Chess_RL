@@ -7,7 +7,7 @@ if (["localhost", "127.0.0.1"].includes(self.location.hostname)) {
   self.registration.unregister();
   self.addEventListener("fetch", () => {});
 } else {
-  const CACHE = "chess-rl-v10";
+  const CACHE = "chess-rl-v11";
   const CACHE_FIRST = [
     "/models/", "/vendor/", "/icons/",
     "gomoku_policy_value.onnx", "xiangqi_policy_value.onnx",
