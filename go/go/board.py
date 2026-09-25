@@ -4,6 +4,7 @@ Board sizes: any (9/13/19). Cells: 0 empty, 1 black, 2 white. Pass = None.
 Move: (r, c) tuple. Rules: capture on placement, suicide forbidden, simple ko
 (point that may not be immediately replayed), two consecutive passes end the
 game, Chinese area scoring (stones + surrounded empty regions) + 7.5 komi.
+Supports play/undo (MCTS-friendly) and fast legality checks.
 """
 from __future__ import annotations
 
@@ -61,7 +62,7 @@ class Board:
     def play(self, mv) -> None:
         """Place at (r,c) or PASS. Raises ValueError on illegal moves."""
         if mv is PASS:
-            self.history.append((None, self.to_move, 0))
+            self.history.append(("pass", self.to_move, self.ko_point, self.passes, []))
             self.passes += 1
             self.ko_point = None
             self.to_move = other(self.to_move)
@@ -78,18 +79,14 @@ class Board:
         self.cells[i] = me
 
         # remove opponent groups without liberties
-        captured = 0
-        cap_last = -1
+        captured: list[int] = []
         for nb in self._neighbors(i):
             if self.cells[nb] == opp:
                 group, libs = self._group_and_liberties(nb)
                 if not libs:
                     for j in group:
                         self.cells[j] = EMPTY
-                    captured += len(group)
-                    cap_last = next(iter(group))
-        # undo-shape for ko detection: remember if we captured exactly one
-        single_capture = captured == 1
+                    captured.extend(group)
 
         # suicide check
         group, libs = self._group_and_liberties(i)
@@ -98,29 +95,60 @@ class Board:
             raise ValueError(f"suicide: {mv}")
 
         # simple ko: single stone captured by a single stone with one liberty
-        if single_capture and len(group) == 1 and len(libs) == 1:
-            self.ko_point = cap_last
+        if len(captured) == 1 and len(group) == 1 and len(libs) == 1:
+            self.ko_point = captured[0]
         else:
             self.ko_point = None
 
-        self.history.append(((r, c), me, captured))
+        self.history.append((mv, self.to_move, self.ko_point, self.passes, captured))
         self.passes = 0
         self.to_move = opp
 
+    def undo(self) -> None:
+        mv, to_move, ko_point, passes, captured = self.history.pop()
+        if mv == "pass":
+            self.passes = passes
+            self.ko_point = ko_point
+            self.to_move = other(self.to_move)
+            return
+        r, c = mv
+        i = r * self.n + c
+        self.cells[i] = EMPTY
+        for j in captured:
+            self.cells[j] = other(self.to_move)
+        self.to_move = other(self.to_move)
+        self.passes = passes
+        self.ko_point = ko_point
+
+    def is_legal(self, mv) -> bool:
+        """Fast legality check without raising (suicide/ko/occupied)."""
+        if mv is PASS:
+            return True
+        r, c = mv
+        i = r * self.n + c
+        if self.cells[i] != EMPTY or self.ko_point == i:
+            return False
+        me = self.to_move
+        opp = other(me)
+        self.cells[i] = me
+        group, libs = self._group_and_liberties(i)
+        legal = bool(libs)
+        if not legal:
+            # capture move: any adjacent opponent group without liberties?
+            for nb in self._neighbors(i):
+                if self.cells[nb] == opp:
+                    _, olibs = self._group_and_liberties(nb)
+                    if not olibs:
+                        legal = True
+                        break
+        self.cells[i] = EMPTY
+        return legal
+
     def legal_moves(self) -> list[tuple[int, int]]:
-        out = []
-        for i, v in enumerate(self.cells):
-            if v != EMPTY or (self.ko_point == i):
-                continue
-            # fast suicide check by simulation on a copy
-            r, c = divmod(i, self.n)
-            b = self.clone()
-            try:
-                b.play((r, c))
-                out.append((r, c))
-            except ValueError:
-                pass
-        return out
+        return [mv for mv in
+                [(r, c) for r in range(self.n) for c in range(self.n)
+                 if self.cells[r * self.n + c] == EMPTY]
+                if self.is_legal(mv)]
 
     def is_over(self) -> bool:
         return self.passes >= 2

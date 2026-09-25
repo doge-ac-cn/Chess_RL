@@ -93,6 +93,27 @@ def test_two_passes_end_and_scoring():
     assert black == 15.0 and white == 12.5, f"got {black}, {white}"
 
 
+def test_undo_restores_position():
+    b = Board(5)
+    b.play((1, 1)); b.play((3, 3)); b.play((2, 2))
+    before = (list(b.cells), b.to_move, b.ko_point, b.passes, list(b.history))
+    b.play((0, 0)); b.play(PASS); b.play((4, 4))
+    for _ in range(3):
+        b.undo()
+    after = (list(b.cells), b.to_move, b.ko_point, b.passes, list(b.history))
+    assert before[0] == after[0] and before[1] == after[1] and before[2] == after[2]
+
+
+def test_capture_with_undo():
+    b = Board(5)
+    for (r, c), reply in [((1, 2), (4, 4)), ((2, 1), (4, 3)), ((2, 3), (4, 2)), ((3, 2), (4, 1))]:
+        b.play((r, c)); b.play(reply)
+    assert b.cells[2 * 5 + 2] == 0  # captured
+    b.undo()                        # undo white's reply
+    b.play((0, 0))
+    assert b.cells[2 * 5 + 2] == 0  # stone stays captured
+
+
 def test_random_game_smoke():
     import random
     rng = random.Random(0)

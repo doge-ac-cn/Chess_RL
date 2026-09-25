@@ -7,7 +7,7 @@ if [ -f checkpoints_v3/best.pt ] && [ "$1" != "--fresh" ]; then
   RESUME="--resume checkpoints_v3/best.pt"
 fi
 exec python3 -m gomoku.train \
-  --board 15 --hours 3.5 \
+  --board 15 --hours 4.5 \
   --ch 96 --blocks 6 \
   --bc-games 300 --games-per-iter 20 --sims 96 --lr 2.5e-4 \
   --workers 20 --buffer-cap 80000 --epochs 2 --batch 256 \
