@@ -2,52 +2,40 @@
 "use strict";
 /* global ort, XQ */
 
-const XCFG = { captureWeight: 300, hangPenalty: 220, temperature: 0.25, topK: 6 };
-let _xsession = null;
 
-async function initXiangqiSession(modelPath) {
-  ort.env.wasm.numThreads = 1;
-  ort.env.wasm.wasmPaths = "vendor/";
-  let lastErr = null;
-  for (const eps of [["webgpu", "wasm"], ["wasm"]]) {
-    try {
-      _xsession = await ort.InferenceSession.create(modelPath, {
-        executionProviders: eps, graphOptimizationLevel: "all",
-      });
-      return eps[0];
-    } catch (e) { lastErr = e; }
+// ---------------- teacher heuristic (port of xiangqi/heuristic.py) ----------
+const XMAT = { 1: 100000, 2: 120, 3: 120, 4: 420, 5: 900, 6: 450, 7: 90 };
+
+function xType(p) { return p < 10 ? p : p - 10; }
+function xSide(p) { return p < 10 ? 1 : 2; }
+
+function xPst(b, i, p) {
+  const t = xType(p), side = xSide(p);
+  const r = (i / 9) | 0, c = i % 9;
+  if (t === 7) {
+    const crossed = side === 1 ? r <= 4 : r >= 5;
+    const depth = side === 1 ? 9 - r : r;
+    return crossed ? 30 : 6 * depth;
   }
-  throw lastErr;
+  if (t === 4 || t === 6) return 6 * (4 - Math.abs(c - 4));
+  return 0;
 }
 
-function xEncode(b) {
-  const x = new Float32Array(15 * 10 * 9);
-  for (let i = 0; i < 90; i++) {
-    const p = b.cells[i];
-    if (p === 0) continue;
-    const r = (i / 9) | 0, c = i % 9;
-    if (p < 10) x[(p - 1) * 90 + r * 9 + c] = 1;
-    else x[(6 + p - 10) * 90 + r * 9 + c] = 1;
-  }
-  if (b.toMove === XQ.RED) {
-    for (let i = 13 * 90; i < 14 * 90; i++) x[i] = 1;
-  }
-  return x;
+function xMoveScore(b, mv, side, netLogit) {
+  const [f, t] = mv;
+  const piece = b.cells[f];
+  let s = b.cells[t] ? Math.log10(XMAT[xType(b.cells[t])] + 10) : 0;
+  s += (xPst(b, t, piece) - xPst(b, f, piece)) / 100;
+  s += 0.02 * (netLogit || 0);            // net policy as a small tiebreak
+  // tempo: fewer opponent replies is better
+  const captured = b.cells[t];
+  b.cells[t] = b.cells[f]; b.cells[f] = 0;
+  const replies = XQ.legalMoves(b).length;
+  b.cells[f] = b.cells[t]; b.cells[t] = captured;
+  s -= 2 * replies / 100;
+  return s;
 }
 
-async function xEvaluate(b) {
-  const t = new ort.Tensor("float32", xEncode(b), [1, 15, 10, 9]);
-  const out = await _xsession.run({ planes: t });
-  return {
-    from: Array.from(out.from.data[0]),
-    to: Array.from(out.to.data[0]),
-    value: out.value.data[0],
-  };
-}
-
-const MATERIAL = { 1: 100000, 2: 120, 3: 120, 4: 420, 5: 900, 6: 450, 7: 90 };
-
-// net-driven move choice with light material/hausse heuristics
 async function xiangqiChooseMove(b, opts = {}) {
   const { onProgress } = opts;
   const side = b.toMove;
@@ -56,29 +44,26 @@ async function xiangqiChooseMove(b, opts = {}) {
   const ev = await xEvaluate(b);
   onProgress && onProgress(1);
 
+  // heuristic score for every legal move + net logit as tiebreak
+  const netFrom = ev.from, netTo = ev.to;
   const scored = legal.map(([f, t]) => {
-    let s = ev.from[f] + ev.to[t];                       // policy logit score
-    const captured = b.cells[t];
-    if (captured !== 0) s += Math.log10(MATERIAL[XQ.TYPE(captured)] + 10); // free material
-    // hang check: would the moved piece be capturable next turn?
     const piece = b.cells[f];
-    const value = MATERIAL[XQ.TYPE(piece)];
-    if (value >= 90) {
-      b.cells[t] = piece; b.cells[f] = 0;
-      const opp = 3 - side;
-      const hanging = XQ.squareAttacked(b, t, opp) && !XQ.squareAttacked(b, t, side);
-      b.cells[f] = piece; b.cells[t] = captured;
-      if (hanging) s -= Math.log10(value + 10) * 1.4;
-    }
+    const captured = b.cells[t];
+    let s = captured ? Math.log10(XMAT[xType(captured)] + 10) : 0;
+    s += (xPst(b, t, piece) - xPst(b, f, piece)) / 100;
+    b.cells[t] = piece; b.cells[f] = 0;
+    const replies = XQ.legalMoves(b).length;
+    b.cells[f] = piece; b.cells[t] = captured;
+    s -= 2 * replies / 100;
+    s += 0.02 * (netFrom[f] + netTo[t]) / 4;
     return { mv: [f, t], s };
   });
-  scored.sort((a, b2) => b2.s - a.s);
   onProgress && onProgress(2);
+  scored.sort((a, b2) => b2.s - a.s);
 
-  // softmax sample among top-K (temperature gives human-friendly variety)
-  const top = scored.slice(0, Math.min(XCFG.topK, scored.length));
+  const top = scored.slice(0, Math.min(5, scored.length));
   const mx = top[0].s;
-  const weights = top.map(o => Math.exp((o.s - mx) / XCFG.temperature));
+  const weights = top.map(o => Math.exp((o.s - mx) / 0.12));
   const total = weights.reduce((a, w) => a + w, 0);
   let pick = top[0].mv;
   if (opts.temperature !== 0) {
@@ -88,5 +73,5 @@ async function xiangqiChooseMove(b, opts = {}) {
       if (acc <= 0) { pick = top[i].mv; break; }
     }
   }
-  return { move: pick, info: { kind: "policy+light", value: ev.value } };
+  return { move: pick, info: { kind: "teacher+policy", value: ev.value } };
 }
