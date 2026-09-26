@@ -1,0 +1,26 @@
+{
+ "ckpt": "checkpoints_v3/best.pt",
+ "sims": 128,
+ "board": 15,
+ "games_each": 100,
+ "rows": [
+  {
+   "opponent": "heuristic",
+   "w": 78,
+   "l": 22,
+   "d": 0,
+   "score": 0.78,
+   "black_wr": 1.0,
+   "avg_plies": 74.2
+  },
+  {
+   "opponent": "net:checkpoints_v2/best.pt:128",
+   "w": 0,
+   "l": 100,
+   "d": 0,
+   "score": 0.0,
+   "black_wr": 0.0,
+   "avg_plies": 65.5
+  }
+ ]
+}

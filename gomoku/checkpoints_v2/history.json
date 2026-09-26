@@ -502,5 +502,17 @@
   "vs_teacher_black": 1.0,
   "promoted": false,
   "t": 243.2
+ },
+ {
+  "iter": 43,
+  "buffer": 5687,
+  "new_pos": 799,
+  "loss": 3.4059,
+  "p": 3.0284,
+  "v": 0.3776,
+  "gate": 0.0,
+  "vs_teacher_black": 1.0,
+  "promoted": true,
+  "t": 213.2
  }
 ]

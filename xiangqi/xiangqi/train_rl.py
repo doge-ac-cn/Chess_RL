@@ -20,6 +20,7 @@ from .encode import encode
 from .mcts import XiangqiMCTS
 from .net import XiangqiNet, count_params
 from .selfplay import selfplay_game
+from .selfplay_mp import parallel_selfplay
 
 
 def policy_loss(pi_targets, flo, tlo):
@@ -70,6 +71,8 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--bc-init", default="bc_net.pt")
+    ap.add_argument("--workers", type=int, default=1,
+                    help=">1 = multiprocess self-play (net loaded from --bc-init path)")
     ap.add_argument("--out", default="rl_net.pt")
     args = ap.parse_args()
 
@@ -86,16 +89,29 @@ def main():
     buffer: list = []
     rng = np.random.default_rng(0)
 
+    net_path_for_mp = args.out  # workers load the latest saved net
     for it in range(1, args.iters + 1):
         t0 = time.time()
         net.eval()
-        mcts = XiangqiMCTS(net, device=args.device)
-        for g in range(args.games):
-            gdata, plies, winner = selfplay_game(
-                mcts, sims=args.sims,
-                rng=np.random.default_rng(hash((it, g)) % (2**31)))
-            buffer.extend(gdata)
-            print(f"[sp] iter{it} game{g}: plies={plies} winner={winner}", flush=True)
+        if args.workers > 1:
+            # multiprocess self-play; workers load the net saved after the
+            # previous iteration (first iteration: the BC/RL init checkpoint)
+            init_path = args.bc_init if it == 1 else net_path_for_mp
+            games = parallel_selfplay(init_path, args.games, args.workers,
+                                      "cpu", args.sims, seed0=it * 1000)
+            for gdata, plies, winner, ended_by in games:
+                print(f"[sp] iter{it}: plies={plies} winner={winner} by={ended_by}",
+                      flush=True)
+                buffer.extend(gdata)
+        else:
+            mcts = XiangqiMCTS(net, device=args.device)
+            for g in range(args.games):
+                gdata, plies, winner, ended_by = selfplay_game(
+                    mcts, sims=args.sims,
+                    rng=np.random.default_rng(hash((it, g)) % (2**31)))
+                buffer.extend(gdata)
+                print(f"[sp] iter{it} game{g}: plies={plies} winner={winner} "
+                      f"by={ended_by}", flush=True)
         del buffer[: max(0, len(buffer) - 20000)]
 
         stats = run(buffer, net, opt, args.device, epochs=args.epochs,
