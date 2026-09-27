@@ -1714,5 +1714,89 @@
   "vs_teacher_black": 1.0,
   "promoted": true,
   "t": 388.4
+ },
+ {
+  "iter": 144,
+  "buffer": 12120,
+  "new_pos": 502,
+  "loss": 3.2149,
+  "p": 2.8298,
+  "v": 0.3851,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 360.2
+ },
+ {
+  "iter": 145,
+  "buffer": 12675,
+  "new_pos": 555,
+  "loss": 3.2241,
+  "p": 2.8474,
+  "v": 0.3767,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 384.6
+ },
+ {
+  "iter": 146,
+  "buffer": 13141,
+  "new_pos": 466,
+  "loss": 3.2512,
+  "p": 2.8684,
+  "v": 0.3828,
+  "gate": 0.167,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 393.2
+ },
+ {
+  "iter": 147,
+  "buffer": 13714,
+  "new_pos": 573,
+  "loss": 3.2848,
+  "p": 2.9022,
+  "v": 0.3826,
+  "gate": 0.5,
+  "vs_teacher_black": 0.75,
+  "promoted": false,
+  "t": 455.2
+ },
+ {
+  "iter": 148,
+  "buffer": 14251,
+  "new_pos": 537,
+  "loss": 3.3112,
+  "p": 2.9371,
+  "v": 0.3741,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 350.8
+ },
+ {
+  "iter": 149,
+  "buffer": 14827,
+  "new_pos": 576,
+  "loss": 3.3274,
+  "p": 2.959,
+  "v": 0.3684,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 409.9
+ },
+ {
+  "iter": 150,
+  "buffer": 15253,
+  "new_pos": 426,
+  "loss": 3.326,
+  "p": 2.9617,
+  "v": 0.3642,
+  "gate": 0.5,
+  "vs_teacher_black": 1.0,
+  "promoted": false,
+  "t": 344.6
  }
 ]
