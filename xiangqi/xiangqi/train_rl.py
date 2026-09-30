@@ -20,6 +20,7 @@ from .encode import encode
 from .mcts import XiangqiMCTS
 from .net import XiangqiNet, count_params
 from .selfplay import selfplay_game
+from .train_bc import generate_bc_data
 from .selfplay_mp import parallel_selfplay
 
 
@@ -40,11 +41,22 @@ def policy_loss(pi_targets, flo, tlo):
     return torch.stack(losses).mean()
 
 
-def run(buffer, net, opt, device, epochs=1, batch=64, rng=None):
+def distill_loss(flo, tlo, teacher_batch):
+    """BC CE toward teacher moves: -(logp_from[f] + logp_to[t]) averaged."""
+    losses = []
+    for k, (x_, legal_, mv_, z_) in enumerate(teacher_batch):
+        f, t = mv_
+        losses.append(-(F.log_softmax(flo[k], 0)[f] + F.log_softmax(tlo[k], 0)[t]))
+    return torch.stack(losses).mean()
+
+
+def run(buffer, net, opt, device, epochs=1, batch=64, rng=None,
+        teacher_data=None, distill_weight=0.5, teacher_rng=None):
     rng = rng or np.random.default_rng(0)
     idx = np.arange(len(buffer))
     net.train()
     tot, nb = 0.0, 0
+    tidx_pool = np.arange(len(teacher_data)) if teacher_data else None
     for _ in range(epochs):
         rng.shuffle(idx)
         for i in range(0, len(idx) - batch + 1, batch):
@@ -54,6 +66,17 @@ def run(buffer, net, opt, device, epochs=1, batch=64, rng=None):
             gt = torch.tensor([buffer[j][3] for j in bidx], device=device)
             flo, tlo, v = net(xs)
             loss = policy_loss(pi_targets, flo, tlo) + F.mse_loss(v, gt)
+            # distillation anchor: teacher-move CE on a small teacher batch
+            if teacher_data and len(tidx_pool) >= 16:
+                tb = teacher_rng.choice(tidx_pool, 16, replace=False)
+                txs = torch.from_numpy(np.stack([teacher_data[j][0] for j in tb])).to(device)
+                t_f, t_t, _ = net(txs)
+                d_losses = []
+                for k, j in enumerate(tb):
+                    f, t = teacher_data[j][2]
+                    d_losses.append(-(F.log_softmax(t_f[k], 0)[f]
+                                      + F.log_softmax(t_t[k], 0)[t]))
+                loss = loss + distill_weight * torch.stack(d_losses).mean()
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -71,6 +94,8 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--bc-init", default="bc_net.pt")
+    ap.add_argument("--distill-weight", type=float, default=0.5)
+    ap.add_argument("--distill-games", type=int, default=300)
     ap.add_argument("--workers", type=int, default=1,
                     help=">1 = multiprocess self-play (net loaded from --bc-init path)")
     ap.add_argument("--out", default="rl_net.pt")
@@ -88,6 +113,10 @@ def main():
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
     buffer: list = []
     rng = np.random.default_rng(0)
+    teacher_data = generate_bc_data(args.distill_games, seed=0) if args.distill_weight > 0 else []
+    if teacher_data:
+        print(f"[distill] {len(teacher_data)} teacher positions (weight {args.distill_weight})",
+              flush=True)
 
     net_path_for_mp = args.out  # workers load the latest saved net
     for it in range(1, args.iters + 1):
@@ -115,7 +144,9 @@ def main():
         del buffer[: max(0, len(buffer) - 20000)]
 
         stats = run(buffer, net, opt, args.device, epochs=args.epochs,
-                    batch=args.batch, rng=rng)
+                    batch=args.batch, rng=rng, teacher_data=teacher_data,
+                    distill_weight=args.distill_weight,
+                    teacher_rng=np.random.default_rng(77 + it))
         net.eval()
         torch.save({"model": net.state_dict(),
                     "arch": {"ch": 64, "blocks": 4}}, args.out)
