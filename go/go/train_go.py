@@ -76,9 +76,14 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--out", default="go_net.pt")
+    ap.add_argument("--init", default="", help="load weights from this checkpoint first")
     args = ap.parse_args()
 
     net = GoNet(n=args.n).to(args.device)
+    if args.init:
+        ck = torch.load(args.init, map_location="cpu", weights_only=True)
+        net.load_state_dict(ck["model"] if "model" in ck else ck)
+        print(f"[init] weights loaded from {args.init}", flush=True)
     print(f"[init] params {count_params(net) / 1e6:.2f}M device={args.device}", flush=True)
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
     buffer: list = []
