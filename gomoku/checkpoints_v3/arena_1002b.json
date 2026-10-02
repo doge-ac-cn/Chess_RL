@@ -6,12 +6,12 @@
  "rows": [
   {
    "opponent": "heuristic",
-   "w": 56,
-   "l": 44,
+   "w": 100,
+   "l": 0,
    "d": 0,
-   "score": 0.56,
+   "score": 1.0,
    "black_wr": 1.0,
-   "avg_plies": 49.9
+   "avg_plies": 49.4
   },
   {
    "opponent": "net:checkpoints_v2/best.pt:128",
@@ -20,7 +20,7 @@
    "d": 0,
    "score": 0.5,
    "black_wr": 1.0,
-   "avg_plies": 42.0
+   "avg_plies": 37.0
   }
  ]
 }
